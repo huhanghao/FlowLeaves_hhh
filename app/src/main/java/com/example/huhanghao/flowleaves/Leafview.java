@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Rect;
@@ -29,9 +30,10 @@ public class LeafView extends View {
     private int height;
     private int width;
     private RectF bgRect;
-    private final Bitmap bgBitmap;
     private Rect bgDestRect;
-    private final Bitmap leafBitmap;
+    private final Bitmap bgBitmap;     // 背景图片
+    private final Bitmap leafBitmap;    // 叶子图片
+    private final Bitmap turnBitmap;    // 风扇图片
     long startTime = 0;      //叶子滑动开始时间
     int addTime;
     //存放叶子lsit
@@ -42,6 +44,18 @@ public class LeafView extends View {
     private final static long cycleTime = 5000;
     //叶子数量
     private final static int leafNumber = 5;
+    // 风扇旋转角度
+    int turnLeafAngle = 0;
+    int rightCircleWidth = 40;
+    private RectF progressArcRectf;
+    private RectF progressRectf;
+    int currentProgress = 0;
+    int borderWidth = 40;
+    int leftCircleWidth = 100;
+    // 进度条实时背景
+    private Paint progressBgPaint;
+    int count = 20;
+
 
     public LeafView(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -49,13 +63,17 @@ public class LeafView extends View {
         // 设置黄色背景画笔
         bgPaint = new Paint();
         bgPaint.setColor(mResources.getColor(R.color.bg_color, null));
+        progressBgPaint = new Paint();
+        progressBgPaint.setColor(mResources.getColor(R.color.bg_progress, null));
         // 获取背景图片和叶子图片
         bgBitmap = ((BitmapDrawable) mResources.getDrawable(R.drawable.leaf_kuang, null)).getBitmap();
         leafBitmap = ((BitmapDrawable) mResources.getDrawable(leaf, null)).getBitmap();
+        turnBitmap = ((BitmapDrawable) mResources.getDrawable(R.drawable.fengshan, null)).getBitmap();
+
         mLeafHeight = leafBitmap.getHeight();
         mLeafWidth = leafBitmap.getWidth();
 
-        //获取所有叶子的信息，放入list
+        // 获取所有叶子的信息，放入list
         leafList = getLeaves(leafNumber);
 
     }
@@ -66,17 +84,18 @@ public class LeafView extends View {
         width = getMeasuredWidth();
         height = getMeasuredHeight();
         bgDestRect = new Rect(0, 0, width, height);
+        bgRect = new RectF(0, 0, width, height);
+        progressArcRectf = new RectF(borderWidth, borderWidth, height - borderWidth, height - borderWidth);
+        progressRectf = new RectF(borderWidth + (height - 2 * borderWidth) / 2, borderWidth,
+                width - rightCircleWidth / 2, height - borderWidth);
     }
 
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-        bgRect = new RectF(0, 0, width, height);
+
         // 添加黄色背景
         canvas.drawRect(bgRect, bgPaint);
-        // 添加背景图片
-        canvas.drawBitmap(bgBitmap, null, bgDestRect, null);
-
         // 画叶子
         int size = leafList.size();
         for (int i = 0; i < size; i++) {
@@ -97,41 +116,56 @@ public class LeafView extends View {
             canvas.drawBitmap(leafBitmap, matrix, new Paint());
             canvas.restore();
 
+            // 画滚动后的背景条
+            int currentProgressWidth = currentProgress * (width - height - borderWidth) / 100;
+
+            if (currentProgressWidth < leftCircleWidth / 2) {
+                //angle取值范围0~90
+                int angle = 90 * currentProgressWidth / (leftCircleWidth / 2);
+                // 起始的位置
+                int startAngle = 180 - angle;
+                // 扫过的角度
+                int sweepAngle = 2 * angle;
+                canvas.drawArc(progressArcRectf, startAngle, sweepAngle, false, progressBgPaint);
+            } else {
+                //画左边半圆形滑过部分
+                canvas.drawArc(progressArcRectf, 90, 180, false, progressBgPaint);
+                progressRectf.left = borderWidth + leftCircleWidth / 2;
+                progressRectf.right = borderWidth + currentProgressWidth;
+                //画中间滑过部分
+                canvas.drawRect(progressRectf, progressBgPaint);
+            }
+
         }
 
+
+        count++;
+        if(count%20 == 0){
+            currentProgress++;
+        }
 
         // 重复调用ondraw
-        postInvalidate();
-    }
-
-    /**
-     * 获取matrix矩阵的X位置
-     *
-     * @return
-     */
-    private float getMatrixX() {
-        float betweenTime = startTime - System.currentTimeMillis();
-        // 周期结束加一个cycleTime
-        if (betweenTime < 0) {
-            startTime = System.currentTimeMillis() + cycleTime;
-            betweenTime = cycleTime;
+        if (currentProgress < 100){
+            postInvalidate();
         }
 
-        // 通过时间差计算出叶子的坐标
-        float fraction = (float) betweenTime / cycleTime;
-        float x = (int) (width * fraction);
-        return x;
+        // 添加背景图片
+        canvas.drawBitmap(bgBitmap, null, bgDestRect, null);
+        // 设置风扇
+        setTurnLeaf(canvas);
+        //画百分比
+        setText(canvas);
     }
 
-    /**
-     * 获取叶子的Y的位置
-     *
-     * @return
-     */
-    private float getMatrixY() {
-        float w = (float) ((float) 2 * Math.PI / width);
-        int y = (int) ((height / 4) * Math.sin(w * getMatrixX())) + (height - mLeafHeight) / 2;
-        return y;
+    private void setText(Canvas canvas) {
+        Paint paintText = new Paint();
+        paintText.setColor(Color.WHITE);
+        paintText.setTextSize(30);
+        int textX ;
+        textX = currentProgress < 50 ? (currentProgress * (width - height - borderWidth) / 100) : ((width - height - borderWidth)/2);
+        if(currentProgress > 3) {
+            canvas.drawText(currentProgress + "%", textX, height/2 + 10,paintText);
+        }
     }
 
     private void getRotate(Leaf leaf) {
@@ -144,7 +178,7 @@ public class LeafView extends View {
         float betweenTime = leaf.startTime - System.currentTimeMillis();
         // 周期结束加一个cycleTime
         if (betweenTime < 0) {
-            leaf.startTime = System.currentTimeMillis() + cycleTime;
+            leaf.startTime = System.currentTimeMillis() + cycleTime + new Random().nextInt((int) (cycleTime / 2) + 1000);
             betweenTime = cycleTime;
         }
 
@@ -154,7 +188,7 @@ public class LeafView extends View {
         leaf.x = x;
 
         float w = (float) ((float) 2 * Math.PI / width);
-        int y = (int) ((height / 4) * Math.sin(w * getMatrixX())) + (height - mLeafHeight) / 2;
+        int y = (int) ((height / 6) * Math.sin(w * x)) + (height - mLeafHeight) / 2;
         leaf.y = y;
 
     }
@@ -179,5 +213,14 @@ public class LeafView extends View {
         }
         return list;
     }
+
+    private void setTurnLeaf(Canvas canvas) {
+        Matrix matrix = new Matrix();
+        turnLeafAngle = turnLeafAngle + 3;
+        matrix.postTranslate((width - rightCircleWidth / 2 - turnBitmap.getWidth()), (height - rightCircleWidth / 2 - turnBitmap.getHeight()));
+        matrix.postRotate(-turnLeafAngle, (width - rightCircleWidth / 2 - turnBitmap.getWidth() / 2), (height - rightCircleWidth / 2 - turnBitmap.getHeight() / 2));
+        canvas.drawBitmap(turnBitmap, matrix, new Paint());
+    }
+
 
 }
