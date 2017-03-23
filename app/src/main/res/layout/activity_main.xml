@@ -9,9 +9,8 @@
     android:paddingRight="@dimen/activity_horizontal_margin"
     android:paddingTop="@dimen/activity_vertical_margin"
     tools:context="com.example.huhanghao.flowleaves.MainActivity">
-
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Hello World!" />
+    
+    <com.example.huhanghao.flowleaves.LeafView
+        android:layout_width="302dp"
+        android:layout_height="61dp" />
 </RelativeLayout>
